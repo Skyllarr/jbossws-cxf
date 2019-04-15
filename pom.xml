@@ -31,7 +31,6 @@
   <packaging>pom</packaging>
   <description>JBossWS CXF stack</description>
 
-  
   <version>5.3.1-SNAPSHOT</version>
   
   <!-- Parent -->
@@ -143,7 +142,7 @@
   <!-- DependencyManagement -->
   <dependencyManagement>
     <dependencies>
-      
+
       <!-- jbossws dependencies -->
       <dependency>
         <groupId>org.jboss.modules</groupId>

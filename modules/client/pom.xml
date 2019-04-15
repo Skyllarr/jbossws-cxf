@@ -51,7 +51,7 @@
       <artifactId>jbossws-cxf-transports-undertow</artifactId>
       <version>${project.version}</version>
     </dependency>
-    
+
     <!-- CXF dependencies -->
     <dependency>
         <groupId>org.apache.cxf</groupId>
