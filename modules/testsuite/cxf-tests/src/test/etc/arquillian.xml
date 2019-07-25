@@ -6,7 +6,7 @@
     <container qualifier="jboss" default="true">
         <configuration>
             <property name="jbossHome">${jboss.home}</property>
-            <property name="javaVmArguments">-server -Xms64m -Xmx512m -Djboss.socket.binding.port-offset=${port-offset.cxf-tests.jboss} ${additionalJvmArgs}</property>
+            <property name="javaVmArguments">-server -Xms64m -Xmx512m -Djboss.socket.binding.port-offset=${port-offset.cxf-tests.jboss} -Dwildfly.config.url=/home/skylar/work/projects/integrations/ws/jbossws-cxf/modules/testsuite/cxf-tests/src/test/resources/jaxws/cxf/clientConfig/META-INF/wildfly-config.xml ${additionalJvmArgs}</property>
             <property name="serverConfig">jbws-testsuite-default.xml</property>
             <property name="allowConnectingToRunningServer">true</property>
             <property name="managementAddress">${jboss.bind.address:localhost}</property>
@@ -56,6 +56,19 @@
             <property name="managementPort">${add_int(port-offset.cxf-tests.jms,9990)}</property>
             <!-- AS7-4070 -->
             <property name="waitForPorts">${add_int(port-offset.cxf-tests.jms,8787)} ${add_int(port-offset.cxf-tests.jms,9990)}</property>
+            <property name="waitForPortsTimeoutInSeconds">8</property>
+        </configuration>
+    </container>
+    <container qualifier="jaxws-client">
+        <configuration>
+            <property name="jbossHome">${jboss.home}</property>
+            <property name="javaVmArguments">-server -Xms64m -Xmx512m -Djboss.socket.binding.port-offset=${port-offset.cxf-tests.jboss} -Dwildfly.config.url=/home/skylar/work/projects/integrations/ws/jbossws-cxf/modules/testsuite/cxf-tests/src/test/resources/jaxws/cxf/clientConfig/META-INF/wildfly-config.xml ${additionalJvmArgs} </property>
+            <property name="serverConfig">jbws-testsuite-default.xml</property>
+            <property name="allowConnectingToRunningServer">true</property>
+            <property name="managementAddress">${jboss.bind.address:localhost}</property>
+            <property name="jbossArguments">${jbossArguments}</property>
+            <property name="managementPort">${add_int(port-offset.cxf-tests.jboss,9990)}</property>
+            <property name="waitForPorts">${add_int(port-offset.cxf-tests.jboss,8787)} ${add_int(port-offset.cxf-tests.jboss,9990)}</property>
             <property name="waitForPortsTimeoutInSeconds">8</property>
         </configuration>
     </container>
