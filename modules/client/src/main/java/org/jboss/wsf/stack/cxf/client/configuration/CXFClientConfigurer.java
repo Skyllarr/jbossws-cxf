@@ -21,20 +21,27 @@
  */
 package org.jboss.wsf.stack.cxf.client.configuration;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import javax.security.auth.callback.CallbackHandler;
+import javax.xml.ws.BindingProvider;
 import javax.xml.ws.Dispatch;
 
 import org.apache.cxf.endpoint.Client;
+import org.apache.cxf.endpoint.ConduitSelector;
 import org.apache.cxf.endpoint.Endpoint;
 import org.apache.cxf.frontend.ClientProxy;
 import org.apache.cxf.jaxws.DispatchImpl;
+import org.apache.cxf.ws.security.SecurityConstants;
+import org.apache.wss4j.common.ext.WSPasswordCallback;
 import org.jboss.ws.api.util.ServiceLoader;
 import org.jboss.ws.common.configuration.ConfigHelper;
 import org.jboss.wsf.spi.classloading.ClassLoaderProvider;
 import org.jboss.wsf.spi.metadata.config.ClientConfig;
 import org.jboss.wsf.spi.security.JASPIAuthenticationProvider;
+import org.jboss.wsf.spi.security.WildFlyClientConfigProvider;
 import org.jboss.wsf.stack.cxf.client.Constants;
 import org.jboss.wsf.stack.cxf.i18n.Loggers;
 
@@ -64,8 +71,11 @@ public class CXFClientConfigurer extends ConfigHelper
          cxfClient = ClientProxy.getClient(client);
       }
       cleanupPreviousProps(cxfClient);
-      Map<String, String> props = config.getProperties();
-      if (props != null && !props.isEmpty()) {
+      Map<String, String> props = new HashMap<>();
+      if (config != null && config.getProperties() != null) {
+         props.putAll(config.getProperties());
+      }
+      if (!props.isEmpty()) {
          savePropList(cxfClient, props);
       }
       setConfigProperties(cxfClient, props);
@@ -81,6 +91,15 @@ public class CXFClientConfigurer extends ConfigHelper
       {
          Loggers.SECURITY_LOGGER.cannotFindJaspiClasses();
       }
+      
+      //config elytron
+      WildFlyClientConfigProvider elytronProvider = (WildFlyClientConfigProvider) ServiceLoader.loadService(
+              WildFlyClientConfigProvider.class.getName(), null, ClassLoaderProvider.getDefaultProvider().getServerIntegrationClassLoader());
+      if (elytronProvider != null)
+      {
+         String endpointAddress = ((BindingProvider) client).getRequestContext().get(BindingProvider.ENDPOINT_ADDRESS_PROPERTY).toString();
+         enableElytronClientAuthentication(elytronProvider, cxfClient, endpointAddress);
+      }
    }
    
    public void setConfigProperties(Client client, Map<String, String> properties) {
@@ -88,6 +107,56 @@ public class CXFClientConfigurer extends ConfigHelper
       InterceptorUtils.addInterceptors(client, properties);
       FeatureUtils.addFeatures(client, client.getBus(), properties);
       PropertyReferenceUtils.createPropertyReference(properties, client.getBus().getProperties());
+   }
+   
+   private void enableElytronClientAuthentication(WildFlyClientConfigProvider elytronProvider, Client cxfClient, String endpointAddress) {
+      ElytronClientConfig.setAuthConfiguration(elytronProvider, endpointAddress);
+      Map<String, Object> requestContext = cxfClient.getRequestContext();
+      if (requestContext.get("com.sun.xml.ws.transport.https.client.SSLSocketFactory") == null)
+      {
+         setElytronConduitSelector(cxfClient); // sets BASIC in conduit
+      }
+      else
+      {
+         setHttpBasicProperties(cxfClient);
+      }
+
+      if (ElytronClientConfig.getUsername() != null && ElytronClientConfig.getWsSecurityType() == ElytronClientConfig.WsSecurityType.USERNAME_TOKEN)
+      {
+         setUsernameTokenProperties(cxfClient);
+      }
+   }
+   
+   private void setHttpBasicProperties(Client cxfClient) {
+      if (ElytronClientConfig.getUsername() != null && ((ElytronClientConfig.getHttpMechanism() == null && ElytronClientConfig.getWsSecurityType() == null) ||
+              ElytronClientConfig.getHttpMechanism() == ElytronClientConfig.HttpMechanismType.BASIC))
+      {
+         Map<String, Object> requestContext = cxfClient.getRequestContext();
+         if (requestContext.get(BindingProvider.USERNAME_PROPERTY) == null && requestContext.get(BindingProvider.PASSWORD_PROPERTY) == null)
+         {
+            requestContext.put(BindingProvider.USERNAME_PROPERTY, ElytronClientConfig.getUsername());
+            requestContext.put(BindingProvider.PASSWORD_PROPERTY, ElytronClientConfig.getPassword());
+         }
+      }
+   }
+   
+   private void setUsernameTokenProperties(Client cxfClient) {
+      Map<String, Object> requestContext = cxfClient.getRequestContext();
+      if (requestContext.get(SecurityConstants.USERNAME) == null && requestContext.get(SecurityConstants.PASSWORD) == null &&
+              requestContext.get(SecurityConstants.CALLBACK_HANDLER) == null) {
+         requestContext.put(SecurityConstants.USERNAME, ElytronClientConfig.getUsername());
+         requestContext.put(SecurityConstants.CALLBACK_HANDLER, (CallbackHandler) callbacks -> {
+                    WSPasswordCallback pc = (WSPasswordCallback) callbacks[0];
+                    pc.setPassword(ElytronClientConfig.getPassword());
+                 }
+         );
+      }
+   }
+   
+   private void setElytronConduitSelector(Client cxfClient) {
+      ConduitSelector elytronHttpConduitSelector = new ElytronConduitSelector();
+      elytronHttpConduitSelector.setEndpoint(cxfClient.getEndpoint());
+      cxfClient.setConduitSelector(elytronHttpConduitSelector);
    }
    
    private void savePropList(Client client, Map<String, String> props) {
